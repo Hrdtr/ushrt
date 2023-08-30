@@ -1,0 +1,20 @@
+version: "3"
+
+services:
+  app:
+    build:
+      context: .
+    command: ["./app"]
+    environment:
+      - APP_ENV=development
+      - APP_API_KEY=changeme
+      - APP_BASE_URL=http://localhost:3000
+
+      - POSTGRES_HOST=localhost
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=pguser
+      - POSTGRES_PASSWORD=pgpassword
+      - POSTGRES_DB=ushrt
+      - POSTGRES_SSL_MODE=disable
+    ports:
+      - "3000:3000"

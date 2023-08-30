@@ -1,0 +1,95 @@
+basePath: /
+definitions:
+  main.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  main.GetOrCreateLinkRequestBody:
+    properties:
+      id:
+        maxLength: 32
+        type: string
+      original_url:
+        format: url
+        type: string
+    required:
+    - original_url
+    type: object
+  main.GetOrCreateLinkResponse:
+    properties:
+      created_at:
+        $ref: '#/definitions/sql.NullTime'
+      id:
+        type: string
+      original_url:
+        type: string
+      shortened_url:
+        format: url
+        type: string
+    type: object
+  sql.NullTime:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+info:
+  contact:
+    email: iam@icm.hrdtr.dev
+    name: Herdi Tr.
+  description: Dead simple headless url shortener service for your app
+  title: UShrt
+  version: "1.0"
+paths:
+  /{id}:
+    get:
+      parameters:
+      - description: Link ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "301":
+          description: Moved Permanently
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Resolve original url
+  /api:
+    post:
+      parameters:
+      - description: API Key
+        in: header
+        name: UShrt-API-Key
+        required: true
+        type: string
+      - description: Payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/main.GetOrCreateLinkRequestBody'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.GetOrCreateLinkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Retrieve an existing short link or create a new one
+      tags:
+      - api
+swagger: "2.0"

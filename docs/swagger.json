@@ -1,0 +1,145 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Dead simple headless url shortener service for your app",
+        "title": "UShrt",
+        "contact": {
+            "name": "Herdi Tr.",
+            "email": "iam@icm.hrdtr.dev"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api": {
+            "post": {
+                "tags": [
+                    "api"
+                ],
+                "summary": "Retrieve an existing short link or create a new one",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API Key",
+                        "name": "UShrt-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.GetOrCreateLinkRequestBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.GetOrCreateLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/{id}": {
+            "get": {
+                "summary": "Resolve original url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Link ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "301": {
+                        "description": "Moved Permanently"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.GetOrCreateLinkRequestBody": {
+            "type": "object",
+            "required": [
+                "original_url"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "original_url": {
+                    "type": "string",
+                    "format": "url"
+                }
+            }
+        },
+        "main.GetOrCreateLinkResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "$ref": "#/definitions/sql.NullTime"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "original_url": {
+                    "type": "string"
+                },
+                "shortened_url": {
+                    "type": "string",
+                    "format": "url"
+                }
+            }
+        },
+        "sql.NullTime": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}
