@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func GetEnv(key string) string {
@@ -22,6 +24,7 @@ var (
 	APP_API_KEY            = GetEnvWithFallback("APP_API_KEY", "changeme")
 	APP_BASE_URL           = GetEnvWithFallback("APP_BASE_URL", "http://localhost:3000")
 	APP_CORS_ALLOW_ORIGINS = GetEnvWithFallback("APP_CORS_ALLOW_ORIGINS", "http://localhost:3000")
+	APP_CACHE_TTL          = GetEnvWithFallback("APP_CACHE_TTL", "")
 
 	POSTGRES_HOST     = GetEnvWithFallback("POSTGRES_HOST", "localhost")
 	POSTGRES_PORT     = GetEnvWithFallback("POSTGRES_PORT", "5432")

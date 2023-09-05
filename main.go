@@ -15,32 +15,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
-	"github.com/joho/godotenv"
+	"github.com/jellydator/ttlcache/v3"
 )
-
-// @title			UShrt
-// @version		1.0
-// @description	Dead simple headless url shortener service for your app
-// @contact.name	Herdi Tr.
-// @contact.email	iam@icm.hrdtr.dev
-// @BasePath		/
-func main() {
-	if config.APP_ENV == "development" {
-		godotenv.Load(".env")
-	}
-
-	app := fiber.New()
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: config.APP_CORS_ALLOW_ORIGINS,
-		AllowHeaders: "Origin, Content-Type, Accept, UShrt-API-Key",
-	}))
-	app.Get("/swagger/*", swagger.New(swagger.Config{
-		CustomStyle: "body { margin: 0 } .swagger-ui .topbar { display: none } .swagger-ui .info { margin-top: 20px }",
-	}))
-	InitRoutes(app)
-
-	log.Fatal(app.Listen(":3000"))
-}
 
 type ErrorResponse struct {
 	Code    string `json:"code"`
@@ -55,6 +31,49 @@ func InternalServerError(c *fiber.Ctx, e error) error {
 		Code:    "INTERNAL_SERVER_ERROR",
 		Message: "An unexpected error occurred while processing your request",
 	})
+}
+
+type GetOrCreateLinkRequestBody struct {
+	ID          string `json:"id" validate:"omitempty,max=32"`
+	OriginalUrl string `json:"original_url" format:"url" validate:"required,url"`
+}
+type GetOrCreateLinkResponse struct {
+	db.Link
+	ShortenedUrl string `json:"shortened_url" format:"url"`
+}
+
+var validate = validator.New()
+var cache *ttlcache.Cache[string, db.Link]
+
+// @title			UShrt
+// @version		1.0
+// @description	Dead simple headless url shortener service for your app
+// @contact.name	Herdi Tr.
+// @contact.email	iam@icm.hrdtr.dev
+// @BasePath		/
+func main() {
+	if config.APP_CACHE_TTL != "" {
+		ttl, err := time.ParseDuration(config.APP_CACHE_TTL)
+		if err != nil {
+			panic(err)
+		}
+		cache = ttlcache.New[string, db.Link](
+			ttlcache.WithTTL[string, db.Link](ttl),
+		)
+		go cache.Start() // starts automatic expired item deletion
+	}
+
+	app := fiber.New()
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: config.APP_CORS_ALLOW_ORIGINS,
+		AllowHeaders: "Origin, Content-Type, Accept, UShrt-API-Key",
+	}))
+	app.Get("/swagger/*", swagger.New(swagger.Config{
+		CustomStyle: "body { margin: 0 } .swagger-ui .topbar { display: none } .swagger-ui .info { margin-top: 20px }",
+	}))
+	InitRoutes(app)
+
+	log.Fatal(app.Listen(":3000"))
 }
 
 func InitRoutes(app *fiber.App) {
@@ -80,6 +99,11 @@ func InitRoutes(app *fiber.App) {
 // @Failure	404	{object}	ErrorResponse
 // @Router		/{id}  [get]
 func ResolveURL(c *fiber.Ctx) error {
+	if cache != nil && cache.Has("ID:"+c.Params("id")) {
+		item := cache.Get("ID:" + c.Params("id"))
+		return c.Redirect(item.Value().OriginalUrl, 301)
+	}
+
 	link, err := db.Q.GetLink(context.Background(), c.Params("id"))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -90,19 +114,9 @@ func ResolveURL(c *fiber.Ctx) error {
 		}
 		return InternalServerError(c, err)
 	}
+	cache.Set("ID:"+c.Params("id"), link, ttlcache.DefaultTTL)
 	return c.Redirect(link.OriginalUrl, 301)
 }
-
-type GetOrCreateLinkRequestBody struct {
-	ID          string `json:"id" validate:"omitempty,max=32"`
-	OriginalUrl string `json:"original_url" format:"url" validate:"required,url"`
-}
-type GetOrCreateLinkResponse struct {
-	db.Link
-	ShortenedUrl string `json:"shortened_url" format:"url"`
-}
-
-var validate = validator.New()
 
 func RandStringBytesMaskImprSrcUnsafe(n int) string {
 	var src = rand.NewSource(time.Now().UnixNano())
@@ -149,6 +163,14 @@ func GetOrCreateLink(c *fiber.Ctx) error {
 		})
 	}
 
+	if cache != nil && cache.Has("OriginalUrl:"+payload.OriginalUrl) {
+		item := cache.Get("OriginalUrl:" + payload.OriginalUrl)
+		return c.Status(fiber.StatusOK).JSON(GetOrCreateLinkResponse{
+			Link:         item.Value(),
+			ShortenedUrl: config.APP_BASE_URL + "/" + item.Value().ID,
+		})
+	}
+
 	link, err := db.Q.GetLinkByOriginalUrl(context.Background(), payload.OriginalUrl)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -170,6 +192,7 @@ func GetOrCreateLink(c *fiber.Ctx) error {
 		}
 		return InternalServerError(c, err)
 	}
+	cache.Set("OriginalUrl:"+payload.OriginalUrl, link, ttlcache.DefaultTTL)
 	return c.Status(fiber.StatusOK).JSON(GetOrCreateLinkResponse{
 		Link:         link,
 		ShortenedUrl: config.APP_BASE_URL + "/" + link.ID,
